@@ -4,6 +4,6 @@ Allow to pin app folders to dash.
 
 [Get it on GNOME Extensions][get]
 
-![Screenshot](https://extensions.gnome.org/extension-data/screenshots/screenshot_5709.png)
+![Screenshot](https://extensions.gnome.org/extension-data/screenshots/screenshot_5709_mxK2pxi.png)
 
 [get]: https://extensions.gnome.org/extension/5709/pin-app-folders-to-dash/
