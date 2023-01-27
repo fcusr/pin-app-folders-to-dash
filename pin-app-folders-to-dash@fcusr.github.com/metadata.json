@@ -1,0 +1,8 @@
+{
+    "uuid": "pin-app-folders-to-dash@fcusr.github.com",
+    "name": "Pin App Folders to Dash",
+    "description": "Allow to pin app folders to dash.",
+    "version": 1,
+    "shell-version": ["43"],
+    "url": "https://github.com/fcusr/pin-app-folders-to-dash"
+}
