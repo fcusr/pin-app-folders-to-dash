@@ -6,6 +6,27 @@ const Dash = imports.ui.dash;
 const Main = imports.ui.main;
 const PopupMenu = imports.ui.popupMenu;
 
+let originalEnsurePlaceholder;
+function ensurePlaceholder(source) {
+    if(source instanceof AppDisplay.AppIcon) {
+        originalEnsurePlaceholder.call(this, source);
+        return;
+    }
+    if(this._placeholder) {
+        return;
+    }
+    let id = source.id;
+    let path = `${this._folderSettings.path}folders/${id}/`;
+    this._placeholder = new AppDisplay.FolderIcon(id, path, this);
+    this._placeholder.connect('notify::pressed', icon => {
+        if(icon.pressed) {
+            this.updateDragFocus(icon);
+        }
+    });
+    this._placeholder.scaleAndFade();
+    this._redisplay();
+}
+
 let originalLoadApps;
 function loadApps() {
     let appIcons = originalLoadApps.call(this);
@@ -25,6 +46,7 @@ function loadApps() {
 let originalInitFolderIcon;
 function initFolderIcon(id, path, parentView) {
     originalInitFolderIcon.call(this, id, path, parentView);
+    this.app = lookupAppFolder(id);
     this.connect('button-press-event', (actor, event) => {
         if(event.get_button() == 3) {
             popupMenu.call(this);
@@ -63,6 +85,11 @@ function popupMenu() {
     }
     this._menu.open(BoxPointer.PopupAnimation.FULL);
     this._menuManager.ignoreRelease();
+    let item = this.get_parent();
+    if(item instanceof Dash.DashItemContainer) {
+        let controls = Main.overview._overview._controls;
+        controls.dash._syncLabel(item, this);
+    }
 }
 
 let originalUpdateName;
@@ -89,7 +116,7 @@ function reload() {
         && this._parentalControlsManager.shouldShowApp(app.app_info)) {
             this._favorites[app.get_id()] = app;
         } else if(folders.includes(id)) {
-            this._favorites[id] = id;
+            this._favorites[id] = lookupAppFolder(id);
         }
     });
 }
@@ -157,15 +184,23 @@ function removeFavorite(appId) {
     });
 }
 
+let originalGetAppFromSource;
+function getAppFromSource(source) {
+    if(source instanceof AppDisplay.FolderIcon) {
+        return source.app;
+    }
+    return originalGetAppFromSource(source);
+}
+
 let originalCreateAppItem;
 function createAppItem(app) {
     if(app instanceof Shell.App) {
         return originalCreateAppItem.call(this, app);
     }
     let appDisplay = Main.overview._overview._controls._appDisplay;
-    let path = `${appDisplay._folderSettings.path}folders/${app}/`;
-    let appIcon = new AppDisplay.FolderIcon(app, path, appDisplay);
-    appIcon.app = app;
+    let id = app.toString();
+    let path = `${appDisplay._folderSettings.path}folders/${id}/`;
+    let appIcon = new AppDisplay.FolderIcon(id, path, appDisplay);
     appIcon.connect('apps-changed', () => {
         appDisplay._redisplay();
         appDisplay._savePages();
@@ -179,8 +214,20 @@ function createAppItem(app) {
     item.setLabelText(AppDisplay._getFolderName(appIcon._folder));
     appIcon.icon.setIconSize(this.iconSize);
     appIcon.icon.y_align = Clutter.ActorAlign.CENTER;
+    appIcon.shouldShowTooltip = () =>
+    appIcon.hover && (!appIcon._menu || !appIcon._menu.isOpen);
     this._hookUpLabel(item);
     return item;
+}
+
+let appFolders = {};
+function lookupAppFolder(id) {
+    if(!appFolders[id]) {
+        appFolders[id] = new String(id);
+        appFolders[id].is_window_backed = () => false;
+        appFolders[id].get_id = () => id;
+    }
+    return appFolders[id];
 }
 
 function redisplayIcons() {
@@ -195,8 +242,11 @@ function redisplayIcons() {
 }
 
 function enable() {
-    originalLoadApps = AppDisplay.AppDisplay.prototype._loadApps;
-    AppDisplay.AppDisplay.prototype._loadApps = loadApps;
+    let appDisplay = AppDisplay.AppDisplay;
+    originalEnsurePlaceholder = appDisplay.prototype._ensurePlaceholder;
+    appDisplay.prototype._ensurePlaceholder = ensurePlaceholder;
+    originalLoadApps = appDisplay.prototype._loadApps;
+    appDisplay.prototype._loadApps = loadApps;
     originalInitFolderIcon = AppDisplay.FolderIcon.prototype._init;
     AppDisplay.FolderIcon.prototype._init = initFolderIcon;
     originalUpdateName = AppDisplay.FolderIcon.prototype._updateName;
@@ -210,13 +260,17 @@ function enable() {
     appFavorites.prototype.removeFavorite = removeFavorite;
     originalReload = appFavorites.prototype.reload;
     appFavorites.prototype.reload = reload;
+    originalGetAppFromSource = Dash.getAppFromSource;
+    Dash.getAppFromSource = getAppFromSource;
     originalCreateAppItem = Dash.Dash.prototype._createAppItem;
     Dash.Dash.prototype._createAppItem = createAppItem;
     redisplayIcons();
 }
 
 function disable() {
-    AppDisplay.AppDisplay.prototype._loadApps = originalLoadApps;
+    let appDisplay = AppDisplay.AppDisplay;
+    appDisplay.prototype._ensurePlaceholder = originalEnsurePlaceholder;
+    appDisplay.prototype._loadApps = originalLoadApps;
     AppDisplay.FolderIcon.prototype._init = originalInitFolderIcon;
     AppDisplay.FolderIcon.prototype._updateName = originalUpdateName;
     let appFavorites = AppFavorites.getAppFavorites().constructor;
@@ -224,6 +278,7 @@ function disable() {
     appFavorites.prototype.addFavoriteAtPos = originalAddFavoriteAtPos;
     appFavorites.prototype.removeFavorite = originalRemoveFavorite;
     appFavorites.prototype.reload = originalReload;
+    Dash.getAppFromSource = originalGetAppFromSource;
     Dash.Dash.prototype._createAppItem = originalCreateAppItem;
     redisplayIcons();
 }
