@@ -3,6 +3,9 @@
     "name": "Pin App Folders to Dash",
     "description": "Allow to pin app folders to dash.",
     "version": 2,
-    "shell-version": ["43"],
+    "shell-version": [
+        "43",
+        "44"
+    ],
     "url": "https://github.com/fcusr/pin-app-folders-to-dash"
 }
